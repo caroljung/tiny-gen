@@ -49,7 +49,7 @@ async def reflect():
     return await prompt_gpt()
     
 
-@app.post("/generate-diff/", response_model=ResponseModel)
+@app.post("/api/generate-diff", response_model=ResponseModel)
 async def generate_diff(request_data: RequestModel):
     repo_url = request_data.repoUrl
     prompt = request_data.prompt
@@ -72,10 +72,6 @@ async def generate_diff(request_data: RequestModel):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-@app.get("/health/")
+@app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
