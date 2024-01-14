@@ -1,8 +1,9 @@
-PRIMER = "You are an efficient and concise programming assistant that only responds in code."
-GENERATE_DIFF = "Write a unified github diff that applies the following changes to {}:\n{}"
+PRIMER = "You are an efficient and concise programming assistant that reads code from links to github repositories and produces code diffs based on a given prompt."
+GENERATE_DIFF = "Write a unified github diff applied to code in this github repository {}. The code diff should alter the existing code in the respository following the given textual command: '{}'. Make sure to reference all file paths relative to the repository's root directory. The diff should strictly apply changes to existing code in the given repository."
 REFLECT = "Can you generate an even more accurate, efficient, and concise diff? If not, return 'stop'"
+READ_CODE="Read the first four lines of code in file {} in this repository {}"
 
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 2
 STOP_TOKEN = 'stop'
 
 from enum import Enum
@@ -32,13 +33,17 @@ def reset_messages():
 
 async def prompt_gpt():
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         messages=messages
     )
     content = response.choices[0].message.content
     messages.append({"role": Role.ASSISTANT, "content": content})
     print(content)
     return content
+
+async def read_code(repo_url, prompt):
+    messages.append({"role": Role.USER, "content": READ_CODE.format(repo_url, prompt)})
+    return await prompt_gpt()
 
 async def get_unified_diff(repo_url, prompt):
     messages.append({"role": Role.USER, "content": GENERATE_DIFF.format(repo_url, prompt)})
@@ -71,6 +76,10 @@ async def generate_diff(request_data: RequestModel):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/read-repo")
+async def read_repo(request: RequestModel):
+    return await read_code(request.repoUrl, request.prompt)
     
 @app.get("/api/health")
 async def health_check():
