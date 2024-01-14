@@ -75,3 +75,7 @@ async def generate_diff(request_data: RequestModel):
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/api/python")
+def hello_world():
+    return {"message": "Hello World"}
