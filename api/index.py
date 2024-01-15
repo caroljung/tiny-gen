@@ -3,16 +3,20 @@ GENERATE_DIFF = "Write a unified github diff applied to code in this github repo
 REFLECT = "Can you generate an even more accurate, efficient, and concise diff? If not, return 'stop'"
 READ_CODE="Read the first four lines of code in file {} in this repository {}"
 
-MAX_ITERATIONS = 2
-STOP_TOKEN = 'stop'
+MAX_REFLECTION_COUNT = 1
+STOP_TOKEN = "stop"
+GPT_MODEL = "gpt-4"
 
+import logging
 from enum import Enum
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
+from clients.supabase_client import SupabaseClient, DiffQuery, DiffResponse
 
 app = FastAPI()
-client = OpenAI()
+gpt = OpenAI()
+supabase = SupabaseClient()
 messages = []
 
 class Role(str, Enum):
@@ -26,14 +30,15 @@ class RequestModel(BaseModel):
 
 class ResponseModel(BaseModel):
     unified_diff: str
+
     
 def reset_messages():
     messages.clear()
     messages.append({"role": Role.SYSTEM, "content": PRIMER})
 
 async def prompt_gpt():
-    response = client.chat.completions.create(
-        model="gpt-4",
+    response = gpt.chat.completions.create(
+        model=GPT_MODEL,
         messages=messages
     )
     content = response.choices[0].message.content
@@ -58,22 +63,29 @@ async def reflect():
 async def generate_diff(request_data: RequestModel):
     repo_url = request_data.repoUrl
     prompt = request_data.prompt
+    
+    diff_query = supabase.store_diff_query(DiffQuery(repo_url=repo_url, prompt=prompt, gpt_model=GPT_MODEL))
 
     reset_messages()
 
     try:
         unified_diff = await get_unified_diff(repo_url, prompt)
-        
-        for i in range(MAX_ITERATIONS):
+        diff_response = DiffResponse(
+            query_id=diff_query.id,
+            diff=unified_diff,
+            reflection_count=0)
+
+        for i in range(MAX_REFLECTION_COUNT):
             reflection = await reflect()
             if reflection.lower() == STOP_TOKEN:
                 break
             else:
+                diff_response.reflection_count += 1
                 unified_diff = reflection
-            
-        return {
-            "unified_diff": unified_diff,
-        }
+                
+        supabase.store_diff_response(diff_response)
+    
+        return { "unified_diff": unified_diff }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
