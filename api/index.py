@@ -12,7 +12,7 @@ from enum import Enum
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
-from clients.supabase_client import SupabaseClient, DiffQuery, DiffResponse
+from .clients.supabase_client import SupabaseClient, DiffQuery, DiffResponse
 
 app = FastAPI()
 gpt = OpenAI()
@@ -33,6 +33,7 @@ class ResponseModel(BaseModel):
 
     
 def reset_messages():
+    
     messages.clear()
     messages.append({"role": Role.SYSTEM, "content": PRIMER})
 
