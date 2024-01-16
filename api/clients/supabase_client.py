@@ -8,6 +8,10 @@ from typing import Optional
 
 QUERIES_TABLE = "diff_queries"
 RESPONSES_TABLE = "diff_responses"
+
+def to_datetime(timestamp_string):
+    # Truncate the fractional seconds to ensure a valid ISO 8601 format
+    return datetime.fromisoformat(timestamp_string.split('.')[0]),
     
 class DiffQuery:
     def __init__(self,
@@ -30,21 +34,14 @@ class DiffQuery:
         }
 
     @classmethod
-    def from_json(cls, json_data):
-        if isinstance(json_data, str):
-            data = json.loads(json_data)
-        else:
-            data = json_data
-            
-        logger = logging.getLogger(__name__)
-        logger.error(data["created_at"])
-
+    def from_json(cls, data):
+        
         return cls(
-            id=uuid.UUID(data["id"]) if data.get("id") else None,
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
-            repo_url=data.get("repo_url"),
-            prompt=data.get("prompt"),
-            gpt_model=data.get("gpt_model")
+            id=uuid.UUID(data["id"]),
+            created_at=to_datetime(data["created_at"]),
+            repo_url=data["repo_url"],
+            prompt=data["prompt"],
+            gpt_model=data["gpt_model"]
         )
 
     def __repr__(self):
@@ -63,11 +60,7 @@ class DiffResponse:
       self.diff = diff
       self.reflection_count = reflection_count
 
-    def to_dict(self):
-        logger = logging.getLogger(__name__)
-        logger.error(self.query_id)
-        logger.error(str(self.query_id))
-    
+    def to_dict(self):    
         return {
             "query_id": str(self.query_id) if self.query_id is not None else None,
             "diff": self.diff,
@@ -75,21 +68,13 @@ class DiffResponse:
         }
 
     @classmethod
-    def from_json(cls, json_data):
-        if isinstance(json_data, str):
-            data = json.loads(json_data)
-        else:
-            data = json_data
-            
-        logger = logging.getLogger(__name__)
-        logger.error(data["created_at"])
-
+    def from_json(cls, data):
         return cls(
-            id=uuid.UUID(data["id"]) if data.get("id") else None,
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
-            query_id=uuid.UUID(data["query_id"]) if data.get("query_id") else None,
-            diff=data.get("diff"),
-            reflection_count=data.get("reflection_count")
+            id=uuid.UUID(data["id"]),
+            created_at=to_datetime(data["created_at"]),
+            query_id=uuid.UUID(data["query_id"]),
+            diff=data["diff"],
+            reflection_count=data["reflection_count"]
         )
 
     def __repr__(self):
