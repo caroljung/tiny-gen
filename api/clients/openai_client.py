@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from openai import OpenAI
+from openai import AsyncOpenAI, AsyncStream
 from ..utils.prompts import *
 
 GPT_MODEL = "gpt-4-1106-preview"
@@ -13,21 +13,14 @@ class Role(str, Enum):
 class GptClient:
   def __init__(self):
     self.messages = []
-    self.client = OpenAI()
+    self.client = AsyncOpenAI()
 
   async def prompt(self):
-      response = self.client.chat.completions.create(
+    return await self.client.chat.completions.create(
           model=GPT_MODEL,
-          messages=self.messages
+          messages=self.messages,
+          stream = True,
       )
-      content = response.choices[0].message.content
-      self.messages.append({"role": Role.ASSISTANT, "content": content})
-      print(content)
-      return content
-
-  async def read_code(self, repo_content):
-      self.messages.append({"role": Role.USER, "content": READ_CODE.format(repo_content)})
-      return await self.prompt()
 
   async def get_unified_diff(self, repo_content, prompt):
       self.messages.clear()
@@ -38,3 +31,6 @@ class GptClient:
   async def reflect(self):
       self.messages.append({"role": Role.USER, "content": REFLECT})
       return await self.prompt()
+      
+  def save_response(self, content):
+      self.messages.append({"role": Role.ASSISTANT, "content": content})

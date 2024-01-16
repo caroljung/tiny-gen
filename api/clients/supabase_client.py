@@ -52,19 +52,16 @@ class DiffResponse:
                  id: uuid.UUID = None, 
                  created_at: datetime = None, 
                  query_id: Optional[uuid.UUID] = None, 
-                 diff: Optional[str] = None, 
-                 reflection_count: Optional[int] = None):
+                 diff: Optional[str] = None):
       self.id = id
       self.created_at = created_at  
       self.query_id = query_id
       self.diff = diff
-      self.reflection_count = reflection_count
 
     def to_dict(self):    
         return {
             "query_id": str(self.query_id) if self.query_id is not None else None,
-            "diff": self.diff,
-            "reflection_count": self.reflection_count
+            "diff": self.diff
         }
 
     @classmethod
@@ -73,12 +70,11 @@ class DiffResponse:
             id=uuid.UUID(data["id"]),
             created_at=to_datetime(data["created_at"]),
             query_id=uuid.UUID(data["query_id"]),
-            diff=data["diff"],
-            reflection_count=data["reflection_count"]
+            diff=data["diff"]
         )
 
     def __repr__(self):
-        return f"<Output(id={self.id}, created_at={self.created_at}, query_id={self.query_id}, diff={self.diff}, reflection_count={self.reflection_count})>"
+        return f"<Output(id={self.id}, created_at={self.created_at}, query_id={self.query_id}, diff={self.diff})>"
 
 class SupabaseClient:
     def __init__(self):
@@ -86,10 +82,10 @@ class SupabaseClient:
         self.key = os.environ.get("NEXT_PUBLIC_SUPABASE_SERVICE_KEY")
         self.client = create_client(self.url, self.key)
 
-    def store_diff_query(self, diff_query: DiffQuery) -> DiffQuery:
+    async def store_diff_query(self, diff_query: DiffQuery) -> DiffQuery:
       response = self.client.table(QUERIES_TABLE).insert(diff_query.to_dict()).execute()
       return DiffQuery.from_json(response.data[0])
 
-    def store_diff_response(self, diff_response: DiffResponse) -> (bool, DiffResponse):
+    async def store_diff_response(self, diff_response: DiffResponse) -> (bool, DiffResponse):
         response = self.client.table(RESPONSES_TABLE).insert(diff_response.to_dict()).execute()
         return DiffResponse.from_json(response.data[0])

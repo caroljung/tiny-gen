@@ -35,5 +35,6 @@ Write a unified github diff to apply changes described: {}.
 Make sure to reference all file paths relative to the repository's root directory.
 The diff should strictly apply changes to the existing code in the repository.
 '''
-REFLECT = "Can you generate an even more accurate, efficient, and concise diff? If not, return 'stop'"
+REFLECT = "Reflect on the changes you made to the repository. If there is a better way to write the code, write a unified github diff to apply the changes. Otherwise, return 'stop'."
 READ_CODE="Describe the file structure of the respository given the following repository content: {}"
+STOP_TOKEN = "stop"

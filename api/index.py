@@ -1,13 +1,11 @@
-MAX_REFLECTION_COUNT = 1
-STOP_TOKEN = "stop"
-GPT_MODEL = "gpt-4-1106-preview"
-
+import asyncio
 import logging
 from enum import Enum
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from .clients.supabase_client import SupabaseClient, DiffQuery, DiffResponse
-from .clients.openai_client import GptClient
+from .clients.openai_client import GptClient, GPT_MODEL
 from .utils.repo_parser import scrape_github_repository
 from .utils.prompts import *
 
@@ -16,56 +14,64 @@ gpt = GptClient()
 supabase = SupabaseClient()
 logger = logging.getLogger('tiny-gen-logger')
 
-class Role(str, Enum):
-    SYSTEM = 'system'
-    USER = 'user'
-    ASSISTANT = 'assistant'
-
 class RequestModel(BaseModel):
     repoUrl: str
     prompt: str
 
-class ResponseModel(BaseModel):
-    unified_diff: str
+async def generate(repo_url, prompt):
+    try:
+        # Store api query
+        diff_query = await supabase.store_diff_query(DiffQuery(repo_url=repo_url, prompt=prompt, gpt_model=GPT_MODEL))
+        repo_content = scrape_github_repository(repo_url)
+        
+        # Stream gpt's response
+        diff_response = DiffResponse(
+            query_id=diff_query.id,
+            diff="")         
+        async for chunk in await gpt.get_unified_diff(repo_content, prompt):
+            if chunk.choices[0].finish_reason == STOP_TOKEN:
+                break
+            else:
+                streaming_bytes = chunk.choices[0].delta.content
+                diff_response.diff += streaming_bytes
+                logging.info(streaming_bytes)
+                yield streaming_bytes
+            
+        gpt.save_response(diff_response.diff)
+        
+        # Stream reflection
+        updated_diff = ""
+        async for chunk in await gpt.reflect():
+            if chunk.choices[0].finish_reason == STOP_TOKEN or chunk.choices[0].delta.content == STOP_TOKEN:
+                break
+            else:
+                streaming_bytes = chunk.choices[0].delta.content
+                updated_diff += streaming_bytes
+                logging.info(streaming_bytes)
+                yield streaming_bytes
+        
+        # Store api response
+        diff_response.diff = updated_diff if len(updated_diff) > 0 else diff_response.diff
+        await supabase.store_diff_response(diff_response)
 
-@app.post("/api/generate-diff", response_model=ResponseModel)
+    except Exception as e:
+        yield str(e)
+
+@app.post("/api/generate-diff")
 async def generate_diff(request_data: RequestModel):
     repo_url = request_data.repoUrl
     prompt = request_data.prompt
+    return StreamingResponse(generate(repo_url, prompt), media_type='text/event-stream')
 
-    try:
-        diff_query = supabase.store_diff_query(DiffQuery(repo_url=repo_url, prompt=prompt, gpt_model=GPT_MODEL))
-        repo_content = scrape_github_repository(repo_url)
-        unified_diff = await gpt.get_unified_diff(repo_content, prompt)
-        diff_response = DiffResponse(
-            query_id=diff_query.id,
-            diff=unified_diff,
-            reflection_count=0)
-
-        for i in range(MAX_REFLECTION_COUNT):
-            reflection = await gpt.reflect()
-            if reflection.lower() == STOP_TOKEN:
-                break
-            else:
-                diff_response.reflection_count += 1
-                unified_diff = reflection
-                
-        supabase.store_diff_response(diff_response)
-
-        return { "unified_diff": unified_diff }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-@app.get("/api/read-repo")
-async def read_repo(request: RequestModel):
-    repo_content = scrape_github_repository(request.repoUrl)
-    logger.info(repo_content)
-    return await gpt.read_code(repo_content)
-    
 @app.get("/api/health")
-async def health_check():
-    return {"status": "healthy"}
-
-@app.get("/api/python")
 def hello_world():
-    return {"message": "Hello World"}
+    return {"status": "healthy :)"}
+
+async def fake_data_streamer():
+    for i in range(10):
+        yield b'some fake data!\n\n'
+        await asyncio.sleep(0.5)
+    
+@app.post("/api/stream")
+async def stream_data():
+    return StreamingResponse(fake_data_streamer(), media_type='text/event-stream')
