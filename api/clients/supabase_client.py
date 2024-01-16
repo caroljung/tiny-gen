@@ -37,8 +37,7 @@ class DiffQuery:
             data = json_data
             
         logger = logging.getLogger(__name__)
-        logger.error(json_data)
-        logger.error(data)
+        logger.error(data["created_at"])
 
         return cls(
             id=uuid.UUID(data["id"]) if data.get("id") else None,
@@ -81,6 +80,9 @@ class DiffResponse:
             data = json.loads(json_data)
         else:
             data = json_data
+            
+        logger = logging.getLogger(__name__)
+        logger.error(data["created_at"])
 
         return cls(
             id=uuid.UUID(data["id"]) if data.get("id") else None,
