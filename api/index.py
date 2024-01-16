@@ -6,15 +6,14 @@ import logging
 from enum import Enum
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
 from .clients.supabase_client import SupabaseClient, DiffQuery, DiffResponse
+from .clients.openai_client import GptClient
 from .utils.repo_parser import scrape_github_repository
 from .utils.prompts import *
 
 app = FastAPI()
-gpt = OpenAI()
+gpt = GptClient()
 supabase = SupabaseClient()
-messages = []
 logger = logging.getLogger('tiny-gen-logger')
 
 class Role(str, Enum):
@@ -29,32 +28,6 @@ class RequestModel(BaseModel):
 class ResponseModel(BaseModel):
     unified_diff: str
 
-
-async def prompt_gpt():
-    response = gpt.chat.completions.create(
-        model=GPT_MODEL,
-        messages=messages
-    )
-    content = response.choices[0].message.content
-    messages.append({"role": Role.ASSISTANT, "content": content})
-    print(content)
-    return content
-
-async def read_code(repo_content):
-    messages.append({"role": Role.USER, "content": READ_CODE.format(repo_content)})
-    return await prompt_gpt()
-
-async def get_unified_diff(repo_content, prompt):
-    messages.clear()
-    messages.append({"role": Role.SYSTEM, "content": PRIMER})
-    messages.append({"role": Role.USER, "content": GENERATE_DIFF.format(repo_content, prompt)})
-    return await prompt_gpt()
-
-async def reflect():
-    messages.append({"role": Role.USER, "content": REFLECT})
-    return await prompt_gpt()
-    
-
 @app.post("/api/generate-diff", response_model=ResponseModel)
 async def generate_diff(request_data: RequestModel):
     repo_url = request_data.repoUrl
@@ -63,14 +36,14 @@ async def generate_diff(request_data: RequestModel):
     try:
         diff_query = supabase.store_diff_query(DiffQuery(repo_url=repo_url, prompt=prompt, gpt_model=GPT_MODEL))
         repo_content = scrape_github_repository(repo_url)
-        unified_diff = await get_unified_diff(repo_content, prompt)
+        unified_diff = await gpt.get_unified_diff(repo_content, prompt)
         diff_response = DiffResponse(
             query_id=diff_query.id,
             diff=unified_diff,
             reflection_count=0)
 
         for i in range(MAX_REFLECTION_COUNT):
-            reflection = await reflect()
+            reflection = await gpt.reflect()
             if reflection.lower() == STOP_TOKEN:
                 break
             else:
@@ -87,7 +60,7 @@ async def generate_diff(request_data: RequestModel):
 async def read_repo(request: RequestModel):
     repo_content = scrape_github_repository(request.repoUrl)
     logger.info(repo_content)
-    return await read_code(repo_content)
+    return await gpt.read_code(repo_content)
     
 @app.get("/api/health")
 async def health_check():
