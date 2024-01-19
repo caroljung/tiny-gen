@@ -1,6 +1,6 @@
 {
   "functions": {
-    "/api/generate-diff": {
+    "api/*.py": {
       "maxDuration": 120
     }
   }
