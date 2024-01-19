@@ -11,7 +11,7 @@ const Home: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<EventTarget>) => {
     e.preventDefault();
-    setDiffResponse('Loading...');
+    setDiffResponse('Loading...\n');
 
     try {
       const response = await fetch('/api/generate-diff', {

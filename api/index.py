@@ -61,6 +61,11 @@ async def generate(repo_url, prompt):
 async def generate_diff(request_data: RequestModel):
     repo_url = request_data.repoUrl
     prompt = request_data.prompt
+    
+    if not repo_url:
+        return "Missing repository url"
+    if not prompt:
+        return "Missing prompt"
     return StreamingResponse(generate(repo_url, prompt), media_type='text/event-stream')
 
 @app.get("/api/health")
